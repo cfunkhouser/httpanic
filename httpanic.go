@@ -3,6 +3,7 @@
 package httpanic
 
 import (
+	"errors"
 	"net/http"
 )
 
@@ -16,6 +17,10 @@ type Reason struct {
 
 	// Explanation about why we decided to panic.
 	Explanation string
+}
+
+func (r Reason) Unwrap() error {
+	return r.error
 }
 
 // Detail about a Reason for panicking.
@@ -35,41 +40,53 @@ func WithExplanation(explanation string) Detail {
 	}
 }
 
-// Because describes the reason we are deciding to panic.
-func Because(e error, and ...Detail) Reason {
+// Because describes the reason we are deciding to panic. Unless a specific
+// status is set using WithStatus, 500 Internal Server Error is assumed.
+func Because(e error, deets ...Detail) Reason {
 	r := Reason{
 		error:  e,
 		Status: http.StatusInternalServerError,
 	}
-	for _, a := range and {
-		a(&r)
+	for _, d := range deets {
+		d(&r)
 	}
 	return r
+}
+
+// Renderer of Reasons to the client. Used to present the reason for panicking
+// to the client in a custom way.
+type Renderer func(http.ResponseWriter, Reason)
+
+var defaultRenderer = func(w http.ResponseWriter, reason Reason) {
+	// Send the Reason status to the client, and nothing else.
+	w.WriteHeader(reason.Status)
+}
+
+type reasoner func(error, ...Detail) Reason
+
+// recoverFromPanic invokes a Renderer to provide some useful HTTP response to a
+// panic in a HTTP handler, but only if the argument to panic is something this
+// package knows what to do with. If anything besides a string, error or Reason
+// is given as an argument to panic, the assumption is that it was done for a
+// pretty good reason, and this function propagates the panic.
+func recoverFromPanic(w http.ResponseWriter, render Renderer, cuz reasoner) {
+	switch reason := recover().(type) {
+	case Reason:
+		render(w, reason)
+	case error:
+		render(w, cuz(reason))
+	case string:
+		render(w, cuz(errors.New(reason)))
+	default:
+		panic(reason)
+	}
 }
 
 // Gracefully handle any Reason to panic. If the panic is because of an unclear
 // reason / error, treat it as an Internal Server Error.
 func Gracefully(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer recoverFromPanic(w)
+		defer recoverFromPanic(w, defaultRenderer, Because)
 		next.ServeHTTP(w, r)
 	})
-}
-
-func recoverFromPanic(w http.ResponseWriter) {
-	reason, ok := recover().(Reason)
-	if !ok {
-		// If we're panicking without Reason, don't try to send anything
-		// meaningful.  Further, even though panicking with nil doesn't make
-		// much sense, httpanic assumes a panic() is intentional and treats a
-		// nil reason the same as a non-Reason error.
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	// Send the Reason status to the client. If anything has been returned to
-	// the client already, this will do nothing.
-	w.WriteHeader(reason.Status)
-
-	// TODO(cfunkhouser): Handle how to return meaningful data to the client.
 }

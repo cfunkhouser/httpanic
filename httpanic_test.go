@@ -76,53 +76,67 @@ func TestBecause(t *testing.T) {
 		t.Run(tn, func(t *testing.T) {
 			got := Because(tc.err, tc.additional...)
 			if diff := cmp.Diff(tc.want, got, cmpopts.EquateErrors()); diff != "" {
-				t.Errorf("Because() mismatch (-want +got):\n%v", diff)
+				t.Errorf("Because(): return value mismatch (-want +got):\n%v", diff)
 			}
 		})
 	}
 }
 
+var errForTesting = errors.New("rut-ro raggy")
+
+// cuzTest is a reasoner which creates does nothing fancy.
+func cuzTest(e error, _ ...Detail) Reason {
+	return Reason{error: e}
+}
+
 func TestRecoverFromPanic(t *testing.T) {
 	cmpOpts := []cmp.Option{
-		cmpopts.IgnoreUnexported(httptest.ResponseRecorder{}),
-		cmpopts.IgnoreFields(httptest.ResponseRecorder{}, "HeaderMap"),
+		cmp.Comparer(func(x, y error) bool {
+			// Compare the errors by value only.
+			return x.Error() == y.Error()
+		}),
 	}
+
 	for tn, tc := range map[string]struct {
-		p    interface{}
-		want httptest.ResponseRecorder
+		p           interface{}
+		want        Reason
+		shouldPanic bool
 	}{
 		"nil": {
-			want: httptest.ResponseRecorder{
-				Code: http.StatusInternalServerError,
-			},
+			shouldPanic: true,
 		},
-		"without reason": {
-			p: errors.New("rut-ro raggy"),
-			want: httptest.ResponseRecorder{
-				Code: http.StatusInternalServerError,
-			},
+		"arbitrary other non-reason": {
+			p:           struct{ string }{"this would be weird, but might as well test for it"},
+			shouldPanic: true,
 		},
-		"default reason": {
-			p: Because(errors.New("rut-ro raggy")),
-			want: httptest.ResponseRecorder{
-				Code: http.StatusInternalServerError,
-			},
+		"string": {
+			p:    "this is a string",
+			want: Reason{error: errors.New("this is a string")},
+		},
+		"error": {
+			p:    errForTesting,
+			want: Reason{error: errForTesting},
+		},
+		"reason": {
+			p:    Because(errForTesting),
+			want: Reason{error: errForTesting},
 		},
 	} {
 		t.Run(tn, func(t *testing.T) {
-			got := httptest.ResponseRecorder{}
 			defer func() {
-				if r := recover(); r != nil {
-					t.Fatalf("recoverFromPanic(): a panic escaped: %v", r)
+				if r := recover(); r != nil && !tc.shouldPanic {
+					t.Errorf("recoverFromPanic(): unexpected panic: %v", r)
 				}
 			}()
-			func(t *testing.T, w http.ResponseWriter) {
-				defer recoverFromPanic(w)
+			func(t *testing.T) {
+				tcRender := func(w http.ResponseWriter, got Reason) {
+					if diff := cmp.Diff(tc.want, got, cmpOpts...); diff != "" {
+						t.Errorf("recoverFromPanic(): render argument mismatch (-want, +got):\n%v", diff)
+					}
+				}
+				defer recoverFromPanic(&httptest.ResponseRecorder{}, tcRender, cuzTest)
 				panic(tc.p)
-			}(t, &got)
-			if diff := cmp.Diff(tc.want, got, cmpOpts...); diff != "" {
-				t.Errorf("recoverFromPanic(): mismatch (-want, +got):\n%v", diff)
-			}
+			}(t)
 		})
 	}
 }
