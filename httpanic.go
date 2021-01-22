@@ -97,14 +97,31 @@ func attemptToRecover(w http.ResponseWriter, render Renderer, cuz reasoner) {
 	}
 }
 
-// Gracefully handle any Reason to panic. If the panic is because of an unclear
-// reason, it is treated as an Internal Server Error. If anything besides a
-// string, error or Reason was given as an argument to panic, the assumption is
-// that it was done for a pretty good reason, and this function propagates the
-// panic.
-func Gracefully(next http.Handler) http.Handler {
+// AsJSON renders a Reason for panicking. If any errors are encountered during
+// render, this function will panic.
+func AsJSON(w http.ResponseWriter, reason Reason) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(reason.Status)
+	if err := json.NewEncoder(w).Encode(reason); err != nil {
+		panic(err)
+	}
+}
+
+// GracefullyRender any Reason to panic with the provided Renderer. If the panic
+// is because of an unclear reason, it is treated as an Internal Server Error.
+// If anything besides a string, error or Reason was given as an argument to
+// panic, the assumption is that it was done for a pretty good reason, and this
+// function propagates the panic. If anything panics while attempting to handle
+// a panic, no attempt will be made to recover from that panic.
+func GracefullyRender(next http.Handler, render Renderer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer attemptToRecover(w, defaultRenderer, Because)
+		defer attemptToRecover(w, render, Because)
 		next.ServeHTTP(w, r)
 	})
+}
+
+// Gracefully handle any Reason to panic by returning an appropriate status
+// code, with no response body. See GracefullyRender for additional detail.
+func Gracefully(next http.Handler) http.Handler {
+	return GracefullyRender(next, defaultRenderer)
 }
