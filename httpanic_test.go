@@ -89,7 +89,7 @@ func cuzTest(e error, _ ...Detail) Reason {
 	return Reason{error: e}
 }
 
-func TestRecoverFromPanic(t *testing.T) {
+func TestAttemptToRecover(t *testing.T) {
 	cmpOpts := []cmp.Option{
 		cmp.Comparer(func(x, y error) bool {
 			// Compare the errors by value only.
@@ -125,16 +125,16 @@ func TestRecoverFromPanic(t *testing.T) {
 		t.Run(tn, func(t *testing.T) {
 			defer func() {
 				if r := recover(); r != nil && !tc.shouldPanic {
-					t.Errorf("recoverFromPanic(): unexpected panic: %v", r)
+					t.Errorf("attemptToRecover(): unexpected panic: %v", r)
 				}
 			}()
 			func(t *testing.T) {
 				tcRender := func(w http.ResponseWriter, got Reason) {
 					if diff := cmp.Diff(tc.want, got, cmpOpts...); diff != "" {
-						t.Errorf("recoverFromPanic(): render argument mismatch (-want, +got):\n%v", diff)
+						t.Errorf("attemptToRecover(): render argument mismatch (-want, +got):\n%v", diff)
 					}
 				}
-				defer recoverFromPanic(&httptest.ResponseRecorder{}, tcRender, cuzTest)
+				defer attemptToRecover(&httptest.ResponseRecorder{}, tcRender, cuzTest)
 				panic(tc.p)
 			}(t)
 		})

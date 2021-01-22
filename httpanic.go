@@ -62,14 +62,14 @@ var defaultRenderer = func(w http.ResponseWriter, reason Reason) {
 	w.WriteHeader(reason.Status)
 }
 
+// reasoner is the interface which describes how to convert an error to a
+// Reason. Because is a reasoner.
 type reasoner func(error, ...Detail) Reason
 
-// recoverFromPanic invokes a Renderer to provide some useful HTTP response to a
+// attemptToRecover invokes a Renderer to provide some useful HTTP response to a
 // panic in a HTTP handler, but only if the argument to panic is something this
-// package knows what to do with. If anything besides a string, error or Reason
-// is given as an argument to panic, the assumption is that it was done for a
-// pretty good reason, and this function propagates the panic.
-func recoverFromPanic(w http.ResponseWriter, render Renderer, cuz reasoner) {
+// package knows what to do with.
+func attemptToRecover(w http.ResponseWriter, render Renderer, cuz reasoner) {
 	switch reason := recover().(type) {
 	case Reason:
 		render(w, reason)
@@ -83,10 +83,13 @@ func recoverFromPanic(w http.ResponseWriter, render Renderer, cuz reasoner) {
 }
 
 // Gracefully handle any Reason to panic. If the panic is because of an unclear
-// reason / error, treat it as an Internal Server Error.
+// reason, it is treated as an Internal Server Error. If anything besides a
+// string, error or Reason was given as an argument to panic, the assumption is
+// that it was done for a pretty good reason, and this function propagates the
+// panic.
 func Gracefully(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer recoverFromPanic(w, defaultRenderer, Because)
+		defer attemptToRecover(w, defaultRenderer, Because)
 		next.ServeHTTP(w, r)
 	})
 }
