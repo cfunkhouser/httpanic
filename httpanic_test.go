@@ -1,6 +1,7 @@
 package httpanic
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,22 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
+
+func TestReasonMarshalJSON(t *testing.T) {
+	want := `{"error":"this is an error","status":420,"explanation":"Chill, man!"}`
+	reason := Reason{
+		error:       errors.New("this is an error"),
+		Status:      420,
+		Explanation: "Chill, man!",
+	}
+	b, err := json.Marshal(reason)
+	if err != nil {
+		t.Fatalf("Reason.MarshalJSON(): unexpected error: %v", err)
+	}
+	if got := string(b); got != want {
+		t.Errorf("Reason.MarshalJSON():\n got:%v\nwant:%v\n", got, want)
+	}
+}
 
 func TestBecause(t *testing.T) {
 	testErr := errors.New("test error, please ignore")

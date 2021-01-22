@@ -3,6 +3,7 @@
 package httpanic
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 )
@@ -17,6 +18,20 @@ type Reason struct {
 
 	// Explanation about why we decided to panic.
 	Explanation string
+}
+
+// MarshalJSON implements custom JSON marshaling for Reason.
+func (r Reason) MarshalJSON() ([]byte, error) {
+	jr := struct {
+		Error       string `json:"error"`
+		Status      int    `json:"status"`
+		Explanation string `json:"explanation,omitempty"`
+	}{
+		Error:       r.Error(),
+		Status:      r.Status,
+		Explanation: r.Explanation,
+	}
+	return json.Marshal(jr)
 }
 
 func (r Reason) Unwrap() error {
