@@ -24,11 +24,9 @@ type Reason struct {
 func (r Reason) MarshalJSON() ([]byte, error) {
 	jr := struct {
 		Error       string `json:"error"`
-		Status      int    `json:"status"`
 		Explanation string `json:"explanation,omitempty"`
 	}{
 		Error:       r.Error(),
-		Status:      r.Status,
 		Explanation: r.Explanation,
 	}
 	return json.Marshal(jr)

@@ -12,7 +12,7 @@ import (
 )
 
 func TestReasonMarshalJSON(t *testing.T) {
-	want := `{"error":"this is an error","status":420,"explanation":"Chill, man!"}`
+	want := `{"error":"this is an error","explanation":"Chill, man!"}`
 	reason := Reason{
 		error:       errors.New("this is an error"),
 		Status:      420,
