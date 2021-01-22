@@ -24,7 +24,9 @@ func panickyHTTPHandler(w http.ResponseWriter, r *http.Request) {
 
 func Example() {
 	srv := &http.Server{
-		Handler: httpanic.Gracefully(http.HandlerFunc(panickyHTTPHandler)),
+		// Return any Reasons to panic as JSON to the client, with an
+		// appropriate HTTP status code.
+		Handler: httpanic.GracefullyRender(http.HandlerFunc(panickyHTTPHandler), httpanic.AsJSON),
 	}
 	log.Println(srv.ListenAndServe())
 }
