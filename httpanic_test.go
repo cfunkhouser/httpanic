@@ -119,9 +119,6 @@ func TestAttemptToRecover(t *testing.T) {
 		want        Reason
 		shouldPanic bool
 	}{
-		"nil": {
-			shouldPanic: true,
-		},
 		"arbitrary other non-reason": {
 			p:           struct{ string }{"this would be weird, but might as well test for it"},
 			shouldPanic: true,

@@ -83,7 +83,17 @@ type reasoner func(error, ...Detail) Reason
 // panic in a HTTP handler, but only if the argument to panic is something this
 // package knows what to do with.
 func attemptToRecover(w http.ResponseWriter, render Renderer, cuz reasoner) {
-	switch reason := recover().(type) {
+	r := recover()
+	// recover returns nil when:
+	//   1. It is called outside of a deferred function
+	//   2. When the goroutine is not panicking
+	//   3. When panic() was called with nil as an argument
+	// Since it is impossible to distinguish between these cases, don't even try.
+	if r == nil {
+		return
+	}
+
+	switch reason := r.(type) {
 	case Reason:
 		render(w, reason)
 	case error:
